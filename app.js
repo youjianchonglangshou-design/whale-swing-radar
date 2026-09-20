@@ -1,0 +1,19 @@
+const WALLET='0xd142479997958a4fefd1f8d5373b31ce36987d73';
+const WORKER=(window.WHALE_HUD_CONFIG?.workerUrl||'').replace(/\/$/,'');
+let positions=[], fills=[], peaks={}, filter='all';
+wallet.textContent=WALLET;
+const money=n=>{n=Number(n||0);const a=Math.abs(n);return (n<0?'-$':'$')+(a>=1e6?(a/1e6).toFixed(2)+'M':a>=1e3?(a/1e3).toFixed(1)+'K':a.toFixed(2))};
+const num=n=>Math.abs(Number(n))>=1000?Number(n).toLocaleString(undefined,{maximumFractionDigits:2}):Number(n).toLocaleString(undefined,{maximumFractionDigits:5});
+async function getData(force=false){
+ if(!WORKER||WORKER.includes('YOUR-WORKER')) throw Error('請先在 config.js 填入 Cloudflare Worker 網址');
+ const r=await fetch(WORKER+(force?'?refresh=1':''),{cache:'no-store'}); if(!r.ok) throw Error('Worker '+r.status); return r.json();
+}
+async function load(force=false){live.textContent=force?'UPDATING':'LOADING';cards.innerHTML='';try{
+ const data=await getData(force); positions=data.positions||[];fills=data.fills||[];peaks=data.peaks||{};render();live.textContent='READY';
+ updated.textContent='DATA '+new Date(data.updatedAt).toLocaleString('zh-TW',{timeZone:'Asia/Taipei',hour12:false});
+ }catch(e){cards.innerHTML='<div class="error">'+e.message+'</div>';live.textContent='OFFLINE'}}
+function render(){let ps=positions.filter(p=>filter==='all'||(filter==='crypto'?p.dex==='core':p.dex!=='core'));count.textContent=positions.length;const total=positions.reduce((s,p)=>s+p.value,0),pnlv=positions.reduce((s,p)=>s+p.upnl,0),longs=positions.filter(p=>p.side==='LONG').reduce((s,p)=>s+p.value,0);notional.textContent=money(total);pnl.textContent=(pnlv>=0?'+':'')+money(pnlv);pnl.className=pnlv>=0?'long':'short';bias.textContent=Math.round(longs/Math.max(total,1)*100)+'% / '+Math.round((total-longs)/Math.max(total,1)*100)+'%';cards.innerHTML='';
+ ps.sort((a,b)=>b.value-a.value).forEach(p=>{const n=cardTpl.content.cloneNode(true);n.querySelector('.asset').textContent=p.coin;n.querySelector('.market').textContent=p.dex==='core'?'CRYPTO':'HIP-3 · '+p.dex.toUpperCase();const side=n.querySelector('.side');side.textContent=p.side;side.classList.add(p.side==='LONG'?'long':'short');const conf=Math.min(100,Math.round(p.value/Math.max(peaks[p.key]||p.value,1)*100));n.querySelector('.meterfill').style.width=conf+'%';n.querySelector('.confidence').textContent='WHALE POSITION '+conf+'%';n.querySelector('.entry').textContent='$'+num(p.entry);n.querySelector('.mark').textContent='$'+num(p.mark);n.querySelector('.position').textContent=money(p.value);const u=n.querySelector('.upnl');u.textContent=(p.upnl>=0?'+':'')+money(p.upnl);u.classList.add(p.upnl>=0?'long':'short');n.querySelector('.size').textContent=num(p.size);n.querySelector('.lev').textContent=p.lev==='-'?'-':p.lev+'x';const aliases=new Set([p.coin,p.key,p.dex==='core'?p.coin:p.dex+':'+p.coin]);const h=fills.filter(x=>aliases.has(x.coin));n.querySelector('.history').innerHTML=h.slice(0,30).map(x=>{const dir=x.dir||((x.side==='B')?'BUY':'SELL');const action=dir.replace('Open Long','🟢 開多').replace('Close Long','🔻 平多').replace('Open Short','🔴 開空').replace('Close Short','🔺 平空');const notion=Math.abs(Number(x.px||0)*Number(x.sz||0)),cp=Number(x.closedPnl||0);return `<div class="fillrow"><span>${new Date(Number(x.time)).toLocaleString('zh-TW',{timeZone:'Asia/Taipei',hour12:false})}</span> · <b>${action}</b> · $${num(x.px)} × ${num(x.sz)} · ${money(notion)}${cp?` · PnL <span class="${cp>=0?'long':'short'}">${cp>=0?'+':''}${money(cp)}</span>`:''}</div>`}).join('')||'目前沒有此標的近期成交';cards.appendChild(n)});if(!ps.length)cards.innerHTML='<div class="error">目前此分類沒有未平倉部位。</div>'}
+document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-filter]').forEach(x=>x.classList.remove('active'));b.classList.add('active');filter=b.dataset.filter;render()});
+refresh.onclick=()=>load(true);
+load(false); // 只在開頁時讀一次；沒有 setInterval

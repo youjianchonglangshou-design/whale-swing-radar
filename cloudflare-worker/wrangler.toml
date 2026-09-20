@@ -1,0 +1,14 @@
+name = "whale-swing-radar"
+main = "worker.js"
+compatibility_date = "2026-09-20"
+
+# Cloudflare Cron 使用 UTC。
+# 台灣時間：08,12,16,20,21,22,23,00,01,04
+[triggers]
+crons = ["0 0,4,8,12,13,14,15,16,17,20 * * *"]
+
+# 先在 Cloudflare 建立 KV namespace，Binding 名稱必須是 WHALE_DATA。
+# 若用 Wrangler 部署，可取消下面註解並填入 KV namespace id：
+# [[kv_namespaces]]
+# binding = "WHALE_DATA"
+# id = "YOUR_KV_NAMESPACE_ID"
